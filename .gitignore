@@ -1,0 +1,77 @@
+# ── Data ────────────────────────────────────────────────────────────────────
+data/raw/
+data/processed/
+*.pcap
+*.pcapng
+*.cap
+*.csv
+*.parquet
+
+# ── Models ──────────────────────────────────────────────────────────────────
+models/
+*.joblib
+*.pkl
+*.pt
+*.pth
+*.onnx
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Notebooks ────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# ── Testing & coverage ───────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.coveragerc
+
+# ── Secrets & credentials ────────────────────────────────────────────────────
+.env
+.env.*
+*.key
+*.pem
+*.p12
+config/secrets.yml
+config/secrets.yaml
+
+# ── Output / results ─────────────────────────────────────────────────────────
+results/
+reports/
+*.json
+!sample_output.json
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editors ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
