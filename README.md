@@ -174,10 +174,10 @@ Evaluated on a held-out time-window split of CIC-IDS-2017 (not a random shuffle,
 ## Roadmap
 
 - [x] Project scaffolding and README
-- [ ] `flow_builder.py` — bidirectional flow reconstruction
-- [ ] `features.py` — full feature vector extraction
-- [ ] `train.py` — training pipeline with CIC-IDS-2017
-- [ ] `classify.py` — inference CLI
+- [x] `flow_builder.py` — bidirectional flow reconstruction
+- [x] `features.py` — full feature vector extraction
+- [x] `train.py` — training pipeline with CIC-IDS-2017
+- [x] `classify.py` — inference CLI
 - [ ] SHAP output in reports
 - [ ] JA3 / JA3S TLS fingerprinting (v2)
 - [ ] LSTM beaconing model (v2)
