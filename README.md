@@ -196,6 +196,6 @@ You are free to use, modify, and distribute this software. You may not use contr
 
 ## Author
 
-[Your Name](https://gitlab.com/<your-handle>) · Security researcher · Offensive + defensive tooling
+[Byt3-B34r](https://github.com/Byt3-B34r) · Security researcher · Offensive + defensive tooling
 
 > Built for research and authorized lab environments. See [responsible use](#) for scope.
