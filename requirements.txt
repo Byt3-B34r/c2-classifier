@@ -1,0 +1,31 @@
+# ── Core dependencies ────────────────────────────────────────────────────────
+# PCAP parsing and live capture
+scapy>=2.5.0,<3.0
+
+# Numerical computing
+numpy>=1.24,<3.0
+
+# CSV / dataframe handling for training data
+pandas>=2.0,<3.0
+
+# Classifier baseline (RandomForest), splitting, metrics
+scikit-learn>=1.3,<2.0
+
+# Model serialisation (bundled with sklearn but pinned explicitly)
+joblib>=1.3
+
+# ── Explainability ───────────────────────────────────────────────────────────
+# SHAP for per-prediction feature attribution.
+# Pulls matplotlib + numba transitively. Heavy but worth it for the report.
+shap>=0.44,<1.0
+
+# ── Optional estimator backends ──────────────────────────────────────────────
+# XGBoost is opt-in via `--estimator xgboost`. Comment out if you want a
+# leaner install and only need RandomForest.
+xgboost>=2.0,<3.0
+
+# ── Dev / test (uncomment for local development) ─────────────────────────────
+# pytest>=7.4
+# pytest-cov>=4.1
+# ruff>=0.1
+# mypy>=1.7
