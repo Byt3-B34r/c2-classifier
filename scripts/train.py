@@ -164,6 +164,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Human-readable dataset name recorded in the model metadata.",
     )
     p.add_argument(
+        "--zero-features",
+        type=str,
+        default=None,
+        help="Comma-separated list of features to force-zero before training. "
+             "Useful for ablation studies (e.g. --zero-features dst_port,protocol "
+             "to remove dataset-specific port artifacts). Features are still "
+             "in the schema so trained models remain inference-compatible.",
+    )
+    p.add_argument(
         "--min-packets",
         type=int,
         default=2,
@@ -478,6 +487,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         test_size    = args.test_size,
         random_state = args.random_state,
     )
+
+# ── Optional feature ablation ───────────────────────────────────────────
+    # NOTE: must be applied AFTER split_data() and operate on X_train/X_test
+    # directly, since split_data() returns copies — modifying the original X
+    # would have no effect on what the model actually sees.
+    if args.zero_features:
+        names = [n.strip() for n in args.zero_features.split(",") if n.strip()]
+        zeroed = []
+        unknown = []
+        for name in names:
+            if name in FEATURE_NAMES:
+                idx = FEATURE_NAMES.index(name)
+                X_train[:, idx] = 0.0
+                X_test[:,  idx] = 0.0
+                zeroed.append(name)
+            else:
+                unknown.append(name)
+        if unknown:
+            logger.error("unknown features in --zero-features: %s", unknown)
+            return 1
+        logger.info("zeroed %d features for ablation: %s", len(zeroed), zeroed)
+        # Tag the dataset name so the saved model self-documents the ablation
+        args.dataset_name = f"{args.dataset_name} [zeroed: {','.join(zeroed)}]"
 
     # ── Build classifier ─────────────────────────────────────────────────────
     estimator = build_estimator(args.estimator, args.random_state)

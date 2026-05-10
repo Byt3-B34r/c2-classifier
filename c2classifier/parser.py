@@ -65,7 +65,7 @@ except ImportError as exc:
         "scapy is required. Install with: pip install scapy"
     ) from exc
 
-from flow_builder import (
+from .flow_builder import (
     Packet,
     PROTO_TCP,
     PROTO_UDP,

@@ -38,7 +38,7 @@ from typing import Dict, List
 
 import numpy as np
 
-from flow_builder import (
+from .flow_builder import (
     Flow,
     PROTO_TCP,
     PROTO_UDP,
