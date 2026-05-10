@@ -36,9 +36,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from flow_builder import Flow, PROTO_TCP, PROTO_UDP, PROTO_ICMP
-from features import extract as extract_features
-from model import Prediction, TrainingMetadata
+from .flow_builder import Flow, PROTO_TCP, PROTO_UDP, PROTO_ICMP
+from .features import extract as extract_features
+from .model import Prediction, TrainingMetadata
 
 logger = logging.getLogger(__name__)
 

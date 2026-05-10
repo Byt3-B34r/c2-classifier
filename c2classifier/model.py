@@ -46,16 +46,19 @@ import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
+    average_precision_score,
+    balanced_accuracy_score,
     classification_report,
     confusion_matrix,
     f1_score,
+    matthews_corrcoef,
     precision_score,
     recall_score,
     roc_auc_score,
 )
 from sklearn.model_selection import train_test_split
 
-from features import FEATURE_NAMES, N_FEATURES
+from .features import FEATURE_NAMES, N_FEATURES
 
 logger = logging.getLogger(__name__)
 
@@ -235,19 +238,42 @@ class C2Classifier:
         y_pred  = self.model.predict(X_test)
         y_proba = self.model.predict_proba(X_test)[:, self.LABEL_C2]
 
-        # False-positive rate on the benign class — critical for SOC viability
-        cm = confusion_matrix(y_test, y_pred, labels=[self.LABEL_BENIGN, self.LABEL_C2])
+ # Confusion matrix — drive several derived metrics from this
+        cm = confusion_matrix(
+            y_test, y_pred,
+            labels=[self.LABEL_BENIGN, self.LABEL_C2],
+        )
         tn, fp = cm[0]
         fn, tp = cm[1]
+
+        # False-positive rate on the benign class — critical for SOC viability
         fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+        # False-negative rate on C2 — what the model misses
+        fnr = fn / (fn + tp) if (fn + tp) > 0 else 0.0
+
+        # Both classes present? Some metrics are undefined otherwise
+        both_classes = len(np.unique(y_test)) > 1
 
         metrics = {
-            "precision": float(precision_score(y_test, y_pred, zero_division=0)),
-            "recall":    float(recall_score(   y_test, y_pred, zero_division=0)),
-            "f1":        float(f1_score(       y_test, y_pred, zero_division=0)),
-            "fpr":       float(fpr),
-            "roc_auc":   float(roc_auc_score(  y_test, y_proba))
-                         if len(np.unique(y_test)) > 1 else 0.0,
+            # Standard binary-classification metrics
+            "precision":         float(precision_score(y_test, y_pred, zero_division=0)),
+            "recall":            float(recall_score(   y_test, y_pred, zero_division=0)),
+            "f1":                float(f1_score(       y_test, y_pred, zero_division=0)),
+
+            # SOC-viability metrics
+            "fpr":               float(fpr),
+            "fnr":               float(fnr),
+
+            # Imbalance-honest metrics — these don't get inflated by the
+            # majority class the way ROC-AUC and accuracy do.
+            "pr_auc":            float(average_precision_score(y_test, y_proba))
+                                 if both_classes else 0.0,
+            "balanced_accuracy": float(balanced_accuracy_score(y_test, y_pred)),
+            "mcc":               float(matthews_corrcoef(y_test, y_pred)),
+
+            # Kept for legacy reasons, but treat as optimistic on imbalanced data
+            "roc_auc":           float(roc_auc_score(y_test, y_proba))
+                                 if both_classes else 0.0,
         }
 
         self.metadata.n_test  = int(X_test.shape[0])
@@ -522,9 +548,10 @@ if __name__ == "__main__":
     clf.train(X_train, y_train, dataset_name="synthetic_smoke")
     metrics = clf.evaluate(X_test, y_test, verbose=False)
 
-    assert metrics["f1"]      > 0.95, f"smoke-test F1 too low: {metrics['f1']}"
-    assert metrics["roc_auc"] > 0.98, f"smoke-test ROC-AUC too low: {metrics['roc_auc']}"
-
+    assert metrics["f1"]                > 0.95, f"smoke-test F1 too low: {metrics['f1']}"
+    assert metrics["pr_auc"]            > 0.95, f"smoke-test PR-AUC too low: {metrics['pr_auc']}"
+    assert metrics["balanced_accuracy"] > 0.95, f"smoke-test balanced acc too low: {metrics['balanced_accuracy']}"
+    assert metrics["mcc"]               > 0.90, f"smoke-test MCC too low: {metrics['mcc']}"
     # Round-trip serialisation
     with tempfile.NamedTemporaryFile(suffix=".joblib", delete=False) as tmp:
         clf.save(tmp.name)
