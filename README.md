@@ -39,6 +39,9 @@ The result table at the bottom of this README is the actual story this project t
 
 - Python 3.10+
 - `tshark` available on `$PATH` (optional; only needed for the pyshark fallback path)
+- ~10 GB free disk space if training on the full CTU-13 dataset
+
+### 1. Install
 
 ```bash
 git clone https://github.com/Byt3-B34r/c2-classifier.git
@@ -47,22 +50,22 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Classify a PCAP
+### 2. Bootstrap: train a model
+
+> **Note.** Trained model bundles are not committed to the repository (the `models/` directory is gitignored — bundles are large binaries and tied to specific training-data versions). On a fresh clone you must train a model before `classify.py` can run. The fastest path to a working v3-equivalent classifier is the CTU-13 pipeline below.
+
+Download the CTU-13 dataset (700 MB compressed, ~8 GB extracted):
 
 ```bash
-python scripts/classify.py \
-    --pcap captures/sample.pcap \
-    --model models/rf_v3.joblib \
-    --output results.json \
-    --csv results.csv \
-    --top 20 \
-    -v
+mkdir -p data/raw && cd data/raw
+curl -L -O https://mcfp.felk.cvut.cz/publicDatasets/CTU-13-Dataset/CTU-13-Dataset.tar.bz2
+tar -xjf CTU-13-Dataset.tar.bz2
+cd ../..
 ```
 
-### Train a new model
+Preprocess and train (~3 minutes total on a modern laptop):
 
 ```bash
-# CTU-13 multi-family training (recommended for cross-family generalization)
 python scripts/preprocess_ctu13.py \
     --input "data/raw/CTU-13-Dataset/*/*.binetflow" \
     --output data/processed/ctu13_all.csv \
@@ -76,6 +79,24 @@ python scripts/train.py \
     --dataset-name 'CTU-13 (multi-family botnet)' \
     -v
 ```
+
+### 3. Classify a PCAP
+
+```bash
+python scripts/classify.py \
+    --pcap captures/sample.pcap \
+    --model models/rf_v3.joblib \
+    --output results.json \
+    --csv results.csv \
+    --top 20 \
+    -v
+```
+
+The trained model lives in `models/rf_v3.joblib` and is reusable across PCAPs. Retrain only when training data or feature schema changes.
+
+### Alternative training paths
+
+If you want to reproduce the v1 result (CIC-IDS-2017 single-family baseline) for comparison purposes, see [Validation Methodology and Findings](#validation-methodology-and-findings) below for the full v1/v2/v3 reproduction commands.
 
 ---
 
