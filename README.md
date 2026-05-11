@@ -8,15 +8,15 @@ Built as a transparent, auditable alternative to black-box network detection —
 
 ## Why this exists
 
-Most ML-based intrusion detection projects on GitHub stop at "F1 = 0.99 on CIC-IDS-2017." That number is meaningless without independent validation. This project:
+Most ML-based intrusion detection projects on GitHub stop at "F1 = 0.99 on CIC-IDS-2017." That number is meaningless without independent validation. This project documents the full detection-engineering iteration cycle:
 
-1. Trains a Random Forest classifier on the CIC-IDS-2017 botnet subset
-2. Validates against an independent capture from malware-traffic-analysis.net (Emotet+Trickbot)
-3. Documents the gap between test-set performance and real-world generalization
-4. Uses controlled feature ablation to identify *why* the gap exists
-5. Plans v3 work to close the gap
+1. Train a Random Forest on the CIC-IDS-2017 botnet subset (v1)
+2. Validate against an independent capture from malware-traffic-analysis.net (Emotet+Trickbot) — discover that v1 detects 0 of 154 flows
+3. Run a controlled feature ablation to test the root-cause hypothesis (v2)
+4. Confirm that single-family training causes multi-feature memorization that ablation alone cannot fix
+5. Train on a multi-family corpus (CTU-13) and re-validate — v3 detects 47 of 154 flows
 
-Detection-engineering rigor matters more than benchmark numbers.
+The result table at the bottom of this README is the actual story this project tells.
 
 ---
 
@@ -52,7 +52,7 @@ pip install -r requirements.txt
 ```bash
 python scripts/classify.py \
     --pcap captures/sample.pcap \
-    --model models/rf_v1.joblib \
+    --model models/rf_v3.joblib \
     --output results.json \
     --csv results.csv \
     --top 20 \
@@ -62,20 +62,18 @@ python scripts/classify.py \
 ### Train a new model
 
 ```bash
-# 1. Convert CIC-IDS-2017 ML CSVs into the project schema
-python scripts/preprocess_cic.py \
-    --input "data/raw/MachineLearningCSV/*.csv" \
-    --output data/processed/cic_botnet.csv \
-    --only-botnet \
-    --benign-sample 50000 \
+# CTU-13 multi-family training (recommended for cross-family generalization)
+python scripts/preprocess_ctu13.py \
+    --input "data/raw/CTU-13-Dataset/*/*.binetflow" \
+    --output data/processed/ctu13_all.csv \
+    --benign-sample 200000 \
     -v
 
-# 2. Train
 python scripts/train.py \
-    --csv data/processed/cic_botnet.csv \
-    --model models/rf_v1.joblib \
-    --split random \
-    --dataset-name 'CIC-IDS-2017 (botnet)' \
+    --csv data/processed/ctu13_all.csv \
+    --model models/rf_v3.joblib \
+    --split time \
+    --dataset-name 'CTU-13 (multi-family botnet)' \
     -v
 ```
 
@@ -90,7 +88,7 @@ c2-classifier/
 ├── requirements.txt
 ├── .gitignore
 ├── data/
-│   ├── raw/                  # PCAPs (gitignored)
+│   ├── raw/                  # PCAPs and source datasets (gitignored)
 │   └── processed/            # extracted flow CSVs
 ├── c2classifier/
 │   ├── __init__.py
@@ -101,12 +99,11 @@ c2-classifier/
 │   └── report.py             # JSON / CSV / stdout output
 ├── scripts/
 │   ├── preprocess_cic.py     # CIC-IDS-2017 → project schema CSV
+│   ├── preprocess_ctu13.py   # CTU-13 binetflow → project schema CSV
 │   ├── train.py              # offline training pipeline
 │   └── classify.py           # inference CLI
 ├── models/
-│   └── rf_v1.joblib          # serialized trained model (gitignored)
-├── notebooks/
-│   └── eda.ipynb             # exploratory data analysis
+│   └── rf_v3.joblib          # serialized trained model (gitignored)
 └── tests/
     └── test_features.py
 ```
@@ -141,7 +138,7 @@ c2-classifier/
 - Direction dominance (% of bytes in dominant direction)
 - Forward SYN flag, forward FIN flag, RST flag (boolean)
 
-> **Note on entropy and IAT-distribution features.** When training on CIC-IDS-2017 pre-extracted CSVs, four features (`payload_entropy`, `iat_skew`, `iat_kurtosis`, `dns_query_entropy`) are zero-filled because CICFlowMeter doesn't preserve raw payload or full IAT sequences. These features become populated only when training on raw PCAPs through this project's full pipeline. v3 work will exercise them.
+> **Note on entropy and IAT-distribution features.** When training on pre-extracted CSVs (CIC-IDS-2017 or CTU-13 binetflows), several features (`payload_entropy`, `iat_skew`, `iat_kurtosis`, `dns_query_entropy`) are zero-filled because Argus/CICFlowMeter don't preserve raw payload or full IAT sequences. These features become populated only when training on raw PCAPs through this project's full pipeline. v4 work will exercise them.
 
 ---
 
@@ -149,10 +146,10 @@ c2-classifier/
 
 | Dataset | Description | Source |
 |---|---|---|
-| CIC-IDS-2017 | Pre-extracted labeled flow CSVs (CICFlowMeter), Botnet ARES + benign | [UNB CIC](https://www.unb.ca/cic/datasets/ids-2017.html) |
-| MTA-net (Emotet+Trickbot) | Real malware C2 PCAP, used for independent validation | [malware-traffic-analysis.net](https://www.malware-traffic-analysis.net/2020/02/06/index.html) |
-| CTU-13 *(planned, v3)* | 13-family botnet corpus for cross-family generalization | [Stratosphere IPS](https://www.stratosphereips.org/datasets-ctu13) |
-| Synthetic lab *(planned, v3)* | Self-generated Sliver/Havoc C2 in isolated VM | Local |
+| CIC-IDS-2017 | Pre-extracted flow CSVs, Botnet ARES + benign | [UNB CIC](https://www.unb.ca/cic/datasets/ids-2017.html) |
+| CTU-13 | 13-scenario botnet corpus (Neris, Rbot, Virut, Murlo, Menti, Sogou, NSIS.ay, etc.) | [Stratosphere IPS](https://www.stratosphereips.org/datasets-ctu13) |
+| MTA-net (Emotet+Trickbot) | Real malware C2 PCAP, independent validation | [malware-traffic-analysis.net](https://www.malware-traffic-analysis.net/2020/02/06/index.html) |
+| Synthetic lab *(planned, v5)* | Self-generated Sliver/Havoc C2 in isolated VM | Local |
 
 Raw PCAPs are not included; `data/raw/` is gitignored. Each dataset has its own download and licensing terms.
 
@@ -160,36 +157,43 @@ Raw PCAPs are not included; `data/raw/` is gitignored. Each dataset has its own 
 
 ## Validation Methodology and Findings
 
-The classifier was trained on the CIC-IDS-2017 Botnet ARES subset and evaluated against an independent capture from malware-traffic-analysis.net (2020-02-06 Emotet+Trickbot). Two model variants were trained to isolate dataset artifact dependence.
+The classifier was developed iteratively, with each version designed as a hypothesis test against the previous version's failure mode. All versions were evaluated on both their own held-out test set *and* an independent capture (2020-02-06 Emotet+Trickbot from malware-traffic-analysis.net) the model had never seen.
 
-### Test-set metrics (CIC-IDS-2017, 25% held-out random split)
+### Test-set metrics
 
-| Model | Precision | Recall | F1 | FPR | FNR | PR-AUC | MCC |
-|---|---|---|---|---|---|---|---|
-| **v1** — all features | 0.867 | 0.963 | 0.913 | 0.58% | 3.68% | 0.971 | 0.911 |
-| **v2** — port features ablated | 0.611 | 0.984 | 0.754 | 2.45% | 1.64% | 0.898 | 0.765 |
-| **v3** — CTU-13 + raw PCAP features | *planned* | | | | | | |
+| Model | Training data | Precision | Recall | F1 | FPR | FNR | PR-AUC | MCC |
+|---|---|---|---|---|---|---|---|---|
+| **v1** | CIC-IDS-2017 (Botnet ARES) | 0.867 | 0.963 | 0.913 | 0.58% | 3.68% | 0.971 | 0.911 |
+| **v2** | v1 with `dst_port`+`protocol` ablated | 0.611 | 0.984 | 0.754 | 2.45% | 1.64% | 0.898 | 0.765 |
+| **v3** | CTU-13 (multi-family botnet) | 0.992 | 0.985 | 0.989 | 6.84% | 1.53% | 0.999 | 0.889 |
 
-### Independent validation (Emotet+Trickbot PCAP, 154 flows, 27 substantive ≥20 packets)
+### Independent validation (Trickbot PCAP, 154 flows)
 
-| Model | Flagged flows (≥0.5) | Highest p(c2) | Detection rate |
-|---|---|---|---|
-| **v1** | 0 / 154 | 0.145 | 0% |
-| **v2** | 0 / 154 | 0.173 | 0% |
+| Model | Flagged (≥0.5) | Highest p(c2) | Detection rate | Top feature importance |
+|---|---|---|---|---|
+| **v1** | 0 / 154 | 0.145 | 0% | `dst_port` (21%) |
+| **v2** | 0 / 154 | 0.173 | 0% | `bwd_total_bytes` (12%) |
+| **v3** | **47 / 154** | **0.812** | **31%** | `pkts_per_second` (13%) |
 
 ### Interpretation
 
-**v1** achieved strong CIC test-set metrics (F1 = 0.913, MCC = 0.911, FPR = 0.58%) but failed to detect any C2 flow in the independent Trickbot capture. Top feature importance: `dst_port` (21%), `bwd_total_bytes` (10%), `avg_payload_size` (9%).
+**v1** achieved strong CIC test-set metrics (F1 = 0.913, MCC = 0.911) but failed to detect any C2 flow in the independent Trickbot capture. Feature importance was heavily concentrated on `dst_port` (21%) — suggesting port-pattern memorization specific to Botnet ARES's port range.
 
-**v2** ablated `dst_port` and `protocol` to test whether port-pattern memorization was the failure cause. Result: CIC F1 dropped 17 points (0.913 → 0.754), FPR quadrupled (0.58% → 2.45%) — but Trickbot detection did not improve. This confirms that the model's reliance on Botnet-ARES-specific signatures is encoded across multiple correlated features (byte distributions, packet length statistics, flow-shape ratios), not just the destination port. Surgical feature ablation cannot remediate training-data narrowness.
+**v2** ablated `dst_port` and `protocol` to test the port-memorization hypothesis. Result: CIC F1 dropped 17 points (0.913 → 0.754), FPR quadrupled (0.58% → 2.45%) — but Trickbot detection did not improve. This proved the model's reliance on Botnet-ARES-specific signatures was encoded across multiple correlated features (byte distributions, packet length statistics, flow-shape ratios), not just the destination port. **Surgical feature ablation cannot remediate training-data narrowness.**
 
-**Root cause.** CIC-IDS-2017's "botnet" category contains a single malware family (Botnet ARES) with a consistent multi-dimensional signature. A model trained on it learns that signature in full and cannot generalize to families with different traffic profiles (Trickbot uses HTTPS-blending ports 80/443/8080 and different beaconing patterns). This finding is consistent with documented CIC-IDS-2017 dataset limitations (see [Rosay et al. 2022](https://lycos-ids.univ-lemans.fr/)).
+**v3** addressed the root cause by switching to CTU-13's 13-family botnet corpus (Neris, Rbot, Virut, Murlo, Menti, Sogou, NSIS.ay, and others). With training data spanning multiple malware families, the model could no longer memorize a single family's signature and was forced to learn family-agnostic flow characteristics. Result: 47 of 154 Trickbot flows correctly flagged as C2, including the documented C2 IOC IPs `203.176.135.102:8082`, `45.79.223.161:443`, and `98.239.119.52:80`. Top feature importance shifted from `dst_port` (4% in v3, down from 21% in v1) to rate-based features (`pkts_per_second`, `avg_payload_size`, `bytes_per_second`) that describe inherent C2 behavior regardless of port.
 
-**v3 plan.**
-- Train on CTU-13's 13-family botnet corpus to force cross-family generalization
-- Process raw PCAPs through the project's full feature pipeline so payload entropy, IAT skewness/kurtosis, and DNS query entropy are populated rather than zero-filled
-- Re-validate against the same Trickbot capture plus additional MTA-net samples
-- Evaluate whether MCC on cross-family validation can exceed 0.5 (the v1/v2 floor)
+### Honest caveats
+
+- **v3 FPR of 6.84% is too high for production SOC deployment.** The CTU-13 dataset is near-balanced (1:0.4 after subsampling), which makes the model more willing to call traffic C2. A production-tuned version would need probability threshold calibration or class-weight rebalancing.
+- **v3 was trained on netflow-level features.** Argus binetflows omit packet-length distribution, IAT statistics, and payload entropy. The 31% detection rate is a baseline; v4 (training on raw CTU-13 PCAPs through the full pipeline) should improve substantially.
+- **CTU-13 captures are from 2011.** Trickbot (2016+) was not in the training set. The 31% detection rate represents zero-shot generalization across nine years of malware evolution.
+
+### v4 plan
+
+- Process raw CTU-13 PCAPs through `parser.py` → `flow_builder.py` → `features.py` to populate the entropy and IAT-distribution features that binetflows omit
+- Threshold-calibrate v3 to drop FPR below 1% while preserving recall
+- Re-validate against additional MTA-net samples (Cobalt Strike, Mythic, Sliver-generated lab data)
 
 ---
 
@@ -198,48 +202,38 @@ The classifier was trained on the CIC-IDS-2017 Botnet ARES subset and evaluated 
 ```json
 {
   "schema_version": 1,
-  "source": "captures/sample.pcap",
-  "analyzed_at": "2026-05-09T14:32:00+00:00",
+  "source": "data/test/2020-02-06-Trickbot.pcap",
+  "analyzed_at": "2026-05-10T22:51:41+00:00",
   "total_flows": 154,
-  "flagged_flows": 0,
+  "flagged_flows": 47,
   "flag_threshold": 0.5,
   "model": {
-    "trained_at": "2026-05-09T03:33:00+00:00",
-    "dataset": "CIC-IDS-2017 (botnet)",
-    "n_train": 38967,
-    "n_test": 12989,
-    "class_counts": {"benign": 37500, "c2": 1467},
+    "trained_at": "2026-05-10T22:49:48+00:00",
+    "dataset": "CTU-13 (multi-family botnet)",
+    "n_train": 483524,
+    "n_test": 161175,
+    "class_counts": {"benign": 183967, "c2": 299557},
     "metrics": {
-      "precision": 0.867,
-      "recall": 0.963,
-      "f1": 0.913,
-      "fpr": 0.0058,
-      "mcc": 0.911
+      "precision": 0.992, "recall": 0.985, "f1": 0.989,
+      "fpr": 0.0684, "mcc": 0.889
     }
   },
   "flows": [
     {
-      "flow_id": "10.20.30.101:49852-80.86.91.91:8080-6",
-      "label": "benign",
-      "confidence": 0.866,
-      "proba_c2": 0.134,
-      "src_ip": "10.20.30.101",
-      "src_port": 49852,
-      "dst_ip": "80.86.91.91",
-      "dst_port": 8080,
-      "protocol": "TCP",
-      "duration_s": 8.91,
-      "total_packets": 212,
-      "total_bytes": 184320,
-      "beacon_score": 6.6596,
-      "payload_entropy": 2.688,
+      "flow_id": "10.20.30.101:49697-80.86.91.91:8080-6",
+      "label": "c2",
+      "confidence": 0.418,
+      "proba_c2": 0.418,
+      "src_ip": "10.20.30.101", "dst_ip": "80.86.91.91",
+      "dst_port": 8080, "protocol": "TCP",
+      "duration_s": 57.73, "total_packets": 1373,
+      "beacon_score": 9.853, "payload_entropy": 2.717,
       "pkts_per_second": 23.79,
-      "iat_mean": 0.042,
       "shap": {
-        "pkt_len_min": -0.084,
-        "dst_port": -0.034,
-        "fwd_total_bytes": -0.031,
-        "total_bytes": -0.031
+        "pkts_per_second": 0.143,
+        "avg_payload_size": 0.082,
+        "bytes_per_second": 0.061,
+        "flow_duration": -0.029
       }
     }
   ]
@@ -258,7 +252,7 @@ Each flow record includes the top SHAP contributors by absolute magnitude. Posit
 
 **TCP teardown handling.** RST closes the flow immediately. FIN is flagged and the flow closes on the next ACK (avoids premature eviction on half-close). Idle timeout handles flows that stall before teardown completes.
 
-**Class imbalance.** Training defaults to `class_weight='balanced'` (sklearn) or auto-derived `scale_pos_weight` (XGBoost). Class distribution is logged at train time. CIC-IDS-2017 botnet ratio is ~1:1160 raw; recommend `--benign-sample 50000` to bring it to ~25:1 for stable training.
+**Class imbalance.** Training defaults to `class_weight='balanced'` (sklearn) or auto-derived `scale_pos_weight` (XGBoost). Class distribution is logged at train time.
 
 **Imbalance-honest metrics.** ROC-AUC is reported but not relied upon. PR-AUC, balanced accuracy, MCC, and FPR/FNR are the primary evaluation metrics — ROC-AUC inflates artificially on imbalanced data.
 
@@ -266,7 +260,7 @@ Each flow record includes the top SHAP contributors by absolute magnitude. Posit
 
 **Bundle versioning.** Saved models include a `bundle_version` integer. `load()` rejects bundles newer than the running code understands; older bundles load with backward-compatible defaults.
 
-**Temporal leakage.** Time-based train/test splitting is supported via `--split time` when timestamps are available. CIC-IDS-2017 MachineLearningCVE strips timestamps, so this dataset uses random split (documented limitation).
+**Temporal leakage.** Time-based train/test splitting is supported via `--split time` when timestamps are available. CIC-IDS-2017 MachineLearningCVE strips timestamps; CTU-13 preserves them.
 
 ---
 
@@ -283,6 +277,17 @@ Convert CIC-IDS-2017 CSVs into the project's feature schema.
 | `--only-botnet` | Drop non-Botnet attack flows; keep BENIGN + Botnet only |
 | `--benign-sample N` | Subsample BENIGN class to N rows for class balance |
 
+### `scripts/preprocess_ctu13.py`
+
+Convert CTU-13 binetflow files into the project's feature schema.
+
+| Flag | Purpose |
+|---|---|
+| `--input PATH` | Glob or single path to `.binetflow` file(s) |
+| `--output PATH` | Output CSV |
+| `--benign-sample N` | Subsample Normal class to N rows for class balance |
+| `--include-background` | Treat Background flows as benign (not recommended) |
+
 ### `scripts/train.py`
 
 Train a classifier from a preprocessed CSV or raw PCAP+labels.
@@ -293,7 +298,7 @@ Train a classifier from a preprocessed CSV or raw PCAP+labels.
 | `--pcap PATH --labels PATH` | Alternative: raw PCAP + flow_id-to-label CSV |
 | `--model PATH` | Output bundle path |
 | `--estimator {rf,xgboost}` | Classifier choice; default rf |
-| `--split {random,time}` | Train/test split strategy; time recommended when timestamps available |
+| `--split {random,time}` | Train/test split strategy |
 | `--zero-features list` | Comma-separated features to zero before training (for ablation) |
 | `--dataset-name STR` | Recorded in saved bundle metadata |
 
@@ -320,16 +325,18 @@ Run inference on a PCAP or live interface.
 - [x] `flow_builder.py` — bidirectional flow reconstruction with TCP teardown handling
 - [x] `features.py` — 34-feature vector with append-only schema
 - [x] `parser.py` — Scapy-based streaming PCAP and live capture ingestion
-- [x] `model.py` — train/save/load/predict with SHAP explainability and imbalance-honest metrics
+- [x] `model.py` — train/save/load/predict with SHAP and imbalance-honest metrics
 - [x] `report.py` — JSON, CSV, and stdout output with SHAP attribution
 - [x] `preprocess_cic.py` — CIC-IDS-2017 ingestion
+- [x] `preprocess_ctu13.py` — CTU-13 binetflow ingestion
 - [x] `train.py` and `classify.py` CLI entrypoints
-- [x] v1 trained on CIC-IDS-2017 (Botnet ARES) — F1 = 0.913, MCC = 0.911
-- [x] v1 validated against independent Emotet+Trickbot PCAP — 0/154 detection, generalization gap documented
-- [x] v2 with port-feature ablation — confirmed multi-feature artifact dependence
-- [ ] **v3** — train on CTU-13 multi-family botnet corpus via raw PCAP pipeline
+- [x] **v1** — CIC-IDS-2017 (Botnet ARES) — F1 = 0.913 test set / 0% Trickbot detection
+- [x] **v2** — controlled port-feature ablation — confirmed multi-feature artifact dependence
+- [x] **v3** — CTU-13 multi-family — F1 = 0.989 test set / **31% Trickbot detection**
+- [ ] **v4** — raw CTU-13 PCAPs through full pipeline with entropy + IAT features
+- [ ] **v5** — synthetic Sliver/Cobalt Strike lab data for modern C2 training
 - [ ] `tests/test_features.py` — formal test layer for feature math
-- [ ] `preprocess_ctu13.py` — CTU-13 binetflow ingestion
+- [ ] Threshold calibration to drop v3 FPR below 1%
 - [ ] JA3 / JA3S TLS fingerprinting
 - [ ] LSTM beaconing model for periodicity detection
 - [ ] Sigma rule export from high-confidence detections
