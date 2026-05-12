@@ -6,6 +6,7 @@ data/processed/
 *.cap
 *.csv
 *.parquet
+data/test
 
 # ── Models ──────────────────────────────────────────────────────────────────
 models/

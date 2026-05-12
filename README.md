@@ -1,5 +1,7 @@
 # c2-classifier
 
+> **Status:** Released portfolio artifact. v3 ships as the final trained model. See [Project Status](#project-status) for what's included and possible future directions.
+
 A command-line tool for detecting Command & Control (C2) traffic in network captures using machine learning. Extracts bidirectional flow features from raw PCAPs, classifies flows using a trained Random Forest model, and produces a ranked JSON report with per-prediction SHAP explainability.
 
 Built as a transparent, auditable alternative to black-box network detection — every alert ships with feature attribution, every model artefact carries its full training provenance, and the validation methodology explicitly tests cross-family generalization rather than reporting only test-set metrics.
@@ -340,27 +342,33 @@ Run inference on a PCAP or live interface.
 
 ---
 
-## Roadmap
+## Project Status
 
-- [x] Project scaffolding, README, license, gitignore, requirements
-- [x] `flow_builder.py` — bidirectional flow reconstruction with TCP teardown handling
-- [x] `features.py` — 34-feature vector with append-only schema
-- [x] `parser.py` — Scapy-based streaming PCAP and live capture ingestion
-- [x] `model.py` — train/save/load/predict with SHAP and imbalance-honest metrics
-- [x] `report.py` — JSON, CSV, and stdout output with SHAP attribution
-- [x] `preprocess_cic.py` — CIC-IDS-2017 ingestion
-- [x] `preprocess_ctu13.py` — CTU-13 binetflow ingestion
-- [x] `train.py` and `classify.py` CLI entrypoints
-- [x] **v1** — CIC-IDS-2017 (Botnet ARES) — F1 = 0.913 test set / 0% Trickbot detection
-- [x] **v2** — controlled port-feature ablation — confirmed multi-feature artifact dependence
-- [x] **v3** — CTU-13 multi-family — F1 = 0.989 test set / **31% Trickbot detection**
-- [ ] **v4** — raw CTU-13 PCAPs through full pipeline with entropy + IAT features
-- [ ] **v5** — synthetic Sliver/Cobalt Strike lab data for modern C2 training
-- [ ] `tests/test_features.py` — formal test layer for feature math
-- [ ] Threshold calibration to drop v3 FPR below 1%
-- [ ] JA3 / JA3S TLS fingerprinting
-- [ ] LSTM beaconing model for periodicity detection
-- [ ] Sigma rule export from high-confidence detections
+**Status:** Released. This repository represents the completed v1→v2→v3 work as a portfolio artifact and is no longer under active development.
+
+### What shipped
+
+- Core library: PCAP parser, bidirectional flow builder, 34-feature extractor, model module with SHAP, structured report module
+- Two data preprocessors: CIC-IDS-2017 and CTU-13
+- Two CLI entrypoints: `train.py` and `classify.py`
+- Three trained models documenting an investigative arc:
+  - **v1** — CIC-IDS-2017 (Botnet ARES), F1 = 0.913 test set / 0% Trickbot detection
+  - **v2** — controlled port-feature ablation, confirmed multi-feature artifact dependence
+  - **v3** — CTU-13 multi-family, F1 = 0.989 test set / **31% Trickbot cross-family detection**
+- Independent validation against malware-traffic-analysis.net Emotet+Trickbot capture
+- Full methodology writeup with feature importance analysis and honest caveats
+
+### Possible future directions (out of scope for this release)
+
+These were considered and intentionally deferred. Anyone forking the project is welcome to take them on:
+
+- **Raw PCAP pipeline (v4-equivalent)** — process CTU-13 PCAPs through the full feature pipeline so payload entropy, IAT-distribution shape, and DNS query entropy get real values rather than zero-filled. Scaffolding for this approach (label join via 5-tuple matching, benign capture sourcing) is documented but not implemented in this release.
+- **Modern C2 training data** — Sliver, Cobalt Strike, or Havoc captures from isolated lab environments would extend training coverage beyond CTU-13's 2011-era families.
+- **Threshold calibration** — v3 ships with a 6.84% FPR which is too high for production SOC use. Probability-threshold tuning or class-weight rebalancing could drop FPR below 1% with controlled recall tradeoff.
+- **Test layer** — `tests/test_features.py` for the feature math, beyond the per-module smoke tests already embedded in each file's `__main__` block.
+- **JA3 / JA3S TLS fingerprinting** — would meaningfully extend detection of encrypted C2.
+- **LSTM beaconing model** — sequence model on per-flow IAT vectors for periodicity detection.
+- **Sigma rule export** — high-confidence detections could feed a Sigma rule generator for SIEM integration.
 
 ---
 
